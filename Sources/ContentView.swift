@@ -46,6 +46,15 @@ struct ContentView: View {
     @State private var selectedTool: BotTool?
     @State private var showTokenInfo = false
     @State private var selectedTab = "Overview"
+    @State private var runtimeURL = "https://controlqpc-bot-runtime.onrender.com"
+    @State private var controlKey = ""
+    @State private var cloudStatus = "Not checked"
+    @State private var cloudUsername = "—"
+    @State private var cloudGuildCount = "—"
+    @State private var cloudUptime = "—"
+    @State private var cloudLogs: [String] = []
+    @State private var cloudBusy = false
+    @State private var cloudError = ""
 
     private let panel = Color(red: 0.045, green: 0.045, blue: 0.045)
     private let muted = Color.white.opacity(0.52)
@@ -61,6 +70,7 @@ struct ContentView: View {
                     modePicker
                     botCard
                     tokenCard
+                    cloudSettingsCard
                     toolsSection
                     consoleCard
                     bottomNavigation
@@ -79,7 +89,7 @@ struct ContentView: View {
         .alert("Keep your bot token private", isPresented: $showTokenInfo) {
             Button("Got it", role: .cancel) { }
         } message: {
-            Text("This prototype does not send or store your token. Before connecting a real bot, add a secure backend and never place tokens in source code, logs, or a public repository.")
+            Text("Your bot token is sent only when you tap Start Cloud Bot, over HTTPS to your configured runtime. Never share your token or control key. Rotate the bot token immediately if it is exposed.")
         }
     }
 
@@ -163,8 +173,8 @@ struct ContentView: View {
             HStack {
                 sectionLabel("BOT OVERVIEW")
                 Spacer()
-                statusPill(isPreviewRunning ? "PREVIEW ACTIVE" : "NOT CONNECTED",
-                           active: isPreviewRunning)
+                statusPill(selectedMode == .test ? (isPreviewRunning ? "PREVIEW ACTIVE" : "LOCAL IDLE") : cloudStatus.uppercased(),
+                           active: selectedMode == .test ? isPreviewRunning : cloudStatus == "Running")
             }
 
             HStack(spacing: 13) {
@@ -189,11 +199,11 @@ struct ContentView: View {
             }
 
             HStack(spacing: 0) {
-                metric("RUNTIME", value: isPreviewRunning ? "Preview" : "Idle")
+                metric("RUNTIME", value: selectedMode == .test ? (isPreviewRunning ? "Preview" : "Idle") : cloudStatus)
                 Spacer()
-                metric("COMMANDS", value: "6 drafts")
+                metric("SERVERS", value: selectedMode == .test ? "—" : cloudGuildCount)
                 Spacer()
-                metric("UPTIME", value: "—")
+                metric("UPTIME", value: selectedMode == .test ? "—" : cloudUptime)
             }
             .padding(.vertical, 13)
             .padding(.horizontal, 12)
@@ -203,7 +213,7 @@ struct ContentView: View {
                 if selectedMode == .test {
                     isPreviewRunning.toggle()
                 } else {
-                    showTokenInfo = true
+                    Task { await toggleCloudBot() }
                 }
             } label: {
                 HStack(spacing: 8) {
@@ -212,7 +222,7 @@ struct ContentView: View {
                           : "cloud.upload")
                     Text(selectedMode == .test
                          ? (isPreviewRunning ? "Stop local preview" : "Start local preview")
-                         : "Prepare cloud deployment")
+                         : (cloudBusy ? "Connecting..." : (cloudStatus == "Running" ? "Stop Cloud Bot" : "Start Cloud Bot")))
                 }
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.black)
@@ -221,10 +231,21 @@ struct ContentView: View {
                 .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
+            .disabled(cloudBusy)
 
             Text(selectedMode == .test
-                 ? "Preview mode simulates the workspace UI; it does not connect to Discord yet."
-                 : "Cloud mode needs a protected backend and a deployed bot runtime.")
+                 ? "Local preview simulates the interface and command flow; it does not connect to Discord."
+                 : "Cloud mode sends your token to the configured HTTPS runtime. Keep the control key private.")
+                .font(.system(size: 11))
+                .foregroundStyle(muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !cloudError.isEmpty {
+                Text(cloudError)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
                 .font(.system(size: 11))
                 .foregroundStyle(muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -277,10 +298,85 @@ struct ContentView: View {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "lock.shield")
                     .foregroundStyle(.white.opacity(0.8))
-                Text("UI preview only. This field does not transmit or save credentials.")
+                Text("The token stays in this screen until you start the cloud bot. It is not saved by the app.")
                     .font(.system(size: 11))
                     .foregroundStyle(muted)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(15)
+        .background(panel, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(stroke, lineWidth: 1))
+    }
+
+    private var cloudSettingsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                sectionLabel("CLOUD CONNECTION")
+                Spacer()
+                Button {
+                    Task { await refreshCloudStatus() }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .disabled(cloudBusy)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Runtime URL")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(muted)
+                TextField("https://your-runtime.onrender.com", text: $runtimeURL)
+                    .font(.system(size: 12, design: .monospaced))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                    .padding(12)
+                    .background(Color.black, in: RoundedRectangle(cornerRadius: 11))
+                    .overlay(RoundedRectangle(cornerRadius: 11).stroke(stroke, lineWidth: 1))
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Private control key")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(muted)
+                SecureField("Paste Render CONTROLQPC_CONTROL_KEY", text: $controlKey)
+                    .font(.system(size: 12, design: .monospaced))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(12)
+                    .background(Color.black, in: RoundedRectangle(cornerRadius: 11))
+                    .overlay(RoundedRectangle(cornerRadius: 11).stroke(stroke, lineWidth: 1))
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "lock.shield")
+                    .foregroundStyle(.white.opacity(0.85))
+                Text("Get the control key from your Render service environment settings. Do not paste it into GitHub or share it.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !cloudLogs.isEmpty {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("RUNTIME LOGS")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .tracking(1)
+                        .foregroundStyle(muted)
+                    ForEach(Array(cloudLogs.suffix(8).enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.black, in: RoundedRectangle(cornerRadius: 11))
             }
         }
         .padding(15)
@@ -420,6 +516,118 @@ struct ContentView: View {
             .padding(24)
         }
         .preferredColorScheme(.dark)
+    }
+
+    private func toggleCloudBot() async {
+        guard !cloudBusy else { return }
+        cloudError = ""
+        guard let base = URL(string: runtimeURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+              base.scheme == "https", base.host != nil else {
+            cloudError = "Enter a valid HTTPS runtime URL."
+            return
+        }
+        guard !controlKey.isEmpty else {
+            cloudError = "Paste the private control key from Render first."
+            return
+        }
+        cloudBusy = true
+        defer { cloudBusy = false }
+
+        if cloudStatus == "Running" {
+            do {
+                _ = try await cloudRequest(path: "/api/bot/stop", method: "POST")
+                cloudStatus = "Stopped"
+                cloudUsername = "—"
+                cloudGuildCount = "0"
+                cloudUptime = "—"
+                await refreshCloudLogs()
+            } catch {
+                cloudError = "Could not stop the bot. Check the runtime URL and control key."
+            }
+            return
+        }
+
+        guard !botToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            cloudError = "Paste your Discord bot token above before starting."
+            return
+        }
+
+        do {
+            let body: [String: Any] = [
+                "token": botToken.trimmingCharacters(in: .whitespacesAndNewlines),
+                "name": botName
+            ]
+            let data = try JSONSerialization.data(withJSONObject: body)
+            _ = try await cloudRequest(path: "/api/bot/start", method: "POST", body: data)
+            botToken = ""
+            tokenVisible = false
+            cloudStatus = "Connecting"
+            await refreshCloudStatus()
+            await refreshCloudLogs()
+        } catch {
+            cloudError = "Could not start the bot. Verify the token, bot application, runtime URL, and control key."
+        }
+    }
+
+    private func refreshCloudStatus() async {
+        guard !cloudBusy else { return }
+        guard !controlKey.isEmpty,
+              let base = URL(string: runtimeURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+              base.scheme == "https", base.host != nil else {
+            cloudError = "Enter the HTTPS runtime URL and private control key."
+            return
+        }
+        cloudError = ""
+        cloudBusy = true
+        defer { cloudBusy = false }
+        do {
+            let data = try await cloudRequest(path: "/api/bot/status", method: "GET")
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+            let running = json["running"] as? Bool ?? false
+            let connecting = json["connecting"] as? Bool ?? false
+            cloudStatus = running ? "Running" : (connecting ? "Connecting" : "Stopped")
+            cloudUsername = json["username"] as? String ?? "—"
+            cloudGuildCount = String(json["guildCount"] as? Int ?? 0)
+            let seconds = json["uptimeSeconds"] as? Int ?? 0
+            cloudUptime = running ? "\(seconds)s" : "—"
+            await refreshCloudLogs()
+        } catch {
+            cloudStatus = "Unreachable"
+            cloudError = "Runtime could not be reached. On Render's free plan it may take a moment to wake up."
+        }
+    }
+
+    private func refreshCloudLogs() async {
+        do {
+            let data = try await cloudRequest(path: "/api/bot/logs", method: "GET")
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+            let logs = json["logs"] as? [[String: Any]] ?? []
+            cloudLogs = logs.compactMap { item in
+                guard let level = item["level"] as? String,
+                      let message = item["message"] as? String else { return nil }
+                return "[\(level)] \(message)"
+            }
+        } catch {
+            cloudLogs = ["Logs unavailable."]
+        }
+    }
+
+    private func cloudRequest(path: String, method: String, body: Data? = nil) async throws -> Data {
+        guard let base = URL(string: runtimeURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let url = URL(string: path, relativeTo: base) else {
+            throw URLError(.badURL)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.timeoutInterval = 35
+        request.setValue("Bearer \(controlKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.httpBody = body
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        guard (200..<300).contains(http.statusCode) else { throw URLError(.badServerResponse) }
+        return data
     }
 
     private func sectionLabel(_ title: String) -> some View {
