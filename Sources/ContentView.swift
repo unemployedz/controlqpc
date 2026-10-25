@@ -32,9 +32,9 @@ struct ContentView: View {
     @State private var selectedTab = "Clients"
     @State private var showConnectSheet = false
 
-    private let background = Color(red: 0.035, green: 0.045, blue: 0.075)
-    private let panel = Color(red: 0.075, green: 0.09, blue: 0.135)
-    private let accent = Color(red: 0.42, green: 0.92, blue: 0.88)
+    private let background = Color.black
+    private let panel = Color(red: 0.035, green: 0.035, blue: 0.035)
+    private let accent = Color.white
 
     private let topItems: [(String, String)] = [
         ("antenna.radiowaves.left.and.right", "Connection"),
@@ -63,15 +63,11 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.045, green: 0.055, blue: 0.09), background, Color(red: 0.09, green: 0.12, blue: 0.19)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            Color.black.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 18) {
+                    brandHeader
                     header
                     clientCard
                     featureGrid
@@ -94,6 +90,34 @@ struct ContentView: View {
                 dismissButton: .default(Text("Close"))
             )
         }
+    }
+
+    private var brandHeader: some View {
+        HStack(spacing: 11) {
+            BrandMark()
+                .frame(width: 38, height: 38)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("CONTROLQPC")
+                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .tracking(1.5)
+                    .foregroundStyle(.white)
+                Text("DEVICE PANEL")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .tracking(1.8)
+                    .foregroundStyle(.white.opacity(0.42))
+            }
+            Spacer()
+            Circle()
+                .fill(Color.white.opacity(0.75))
+                .frame(width: 6, height: 6)
+            Text("LOCAL DEMO")
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .tracking(0.8)
+                .foregroundStyle(.white.opacity(0.55))
+        }
+        .padding(.horizontal, 2)
+        .padding(.vertical, 4)
     }
 
     private var header: some View {
@@ -145,7 +169,7 @@ struct ContentView: View {
                         .foregroundStyle(.white)
                     Text("Select an enrolled device to view details")
                         .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color(red: 0.65, green: 0.78, blue: 0.96))
+                        .foregroundStyle(Color.white.opacity(0.62))
                         .fixedSize(horizontal: false, vertical: true)
                     Button {
                         showConnectSheet = true
@@ -174,7 +198,7 @@ struct ContentView: View {
                     } label: {
                         Image(systemName: action.0)
                             .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Color(red: 0.64, green: 0.79, blue: 1.0))
+                            .foregroundStyle(Color.white.opacity(0.72))
                             .frame(maxWidth: .infinity)
                             .frame(height: 43)
                             .contentShape(Rectangle())
@@ -270,10 +294,10 @@ struct ContentView: View {
                         .foregroundStyle(accent)
                 }
             }
-            .foregroundStyle(selectedTab == title ? accent : Color.white.opacity(0.65))
+            .foregroundStyle(selectedTab == title ? Color.white : Color.white.opacity(0.58))
             .padding(.horizontal, 13)
             .padding(.vertical, 10)
-            .background(selectedTab == title ? accent.opacity(0.09) : Color.clear, in: Capsule())
+            .background(selectedTab == title ? Color.white.opacity(0.08) : Color.clear, in: Capsule())
         }
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
