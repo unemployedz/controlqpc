@@ -437,7 +437,7 @@ struct ContentView: View {
                 consoleLine("runtime", selectedMode == .test ? "local test selected" : "cloud runtime not connected")
                 consoleLine("security", "credentials are not transmitted")
                 if isPreviewRunning {
-                    consoleLine("preview", "UI preview started")
+                    consoleLine("preview", "Local command simulator active")
                 }
             }
             .padding(13)
