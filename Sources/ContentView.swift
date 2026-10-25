@@ -98,7 +98,8 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(spacing: 0) {
-            ForEach(topItems, id: \.0) { item in
+            ForEach(Array(topItems.enumerated()), id: \.offset) { entry in
+                let item = entry.element
                 Button {
                     if item.1 == "Connection" { showConnectSheet = true }
                     else { selectedFeature = PanelFeature(title: item.1, symbol: item.0, detail: "This is a visual prototype. Connect a secure, authorized backend to enable supported features.", isAvailable: true) }
@@ -166,7 +167,8 @@ struct ContentView: View {
             Divider().overlay(Color.white.opacity(0.08))
 
             HStack(spacing: 0) {
-                ForEach(quickActions, id: \.0) { action in
+                ForEach(Array(quickActions.enumerated()), id: \.offset) { entry in
+                    let action = entry.element
                     Button {
                         selectedFeature = PanelFeature(title: action.1, symbol: action.0, detail: "No device is connected. This control is a demo placeholder.", isAvailable: false)
                     } label: {
