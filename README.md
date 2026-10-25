@@ -1,12 +1,22 @@
-# ControlQPC iOS Panel
+# ControlQPC — Cloud Bot Studio
 
-A dark SwiftUI dashboard prototype inspired by the supplied reference image.
+A monochrome, pure-black native SwiftUI dashboard concept for building, testing, and managing Discord bots from an iPhone.
 
-## Current scope
-- Native iOS dashboard UI with device selection, status panel, and feature tiles.
-- All controls are demo-only and do not access a remote device.
-- No covert camera/microphone capture, keylogging, private-message collection, or hidden surveillance is implemented.
-- Real device-management features must use explicit enrollment, authenticated cloud APIs, and platform-supported permissions.
+## Current prototype
+- Pure-black interface with monochrome panels and compact status cards.
+- Local Test and Cloud mode selector.
+- Bot name field, credential-field UI, command-builder module cards, and console preview.
+- Local Test currently toggles a UI preview only; it does not run JavaScript or connect to Discord.
+- Cloud mode is a setup placeholder; a secure backend and persistent bot runtime are required before real deployment.
+- The credential field does not transmit or persist the token. Do not put real bot tokens in source code, logs, screenshots, or public repositories.
+
+## Architecture needed for live bots
+- iOS app: dashboard and configuration UI.
+- Authenticated backend: user sessions, authorization, encrypted credential storage, and deployment API.
+- Bot runtime: a separate Node.js process for official Discord bot applications.
+- Local testing: a compatible local runtime or a browser-based simulator. iOS may suspend background work, so an iPhone cannot guarantee a continuously running bot.
+
+Use official Discord bot applications and the Discord API. Do not use user-account tokens or self-bots.
 
 ## Build
 This project uses XcodeGen. On macOS with Xcode installed:
@@ -17,4 +27,4 @@ xcodegen generate
 xcodebuild -project ControlQPC.xcodeproj -scheme ControlQPC -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
 ```
 
-GitHub Actions runs the same simulator build and uploads the app bundle as an artifact. An installable device IPA requires an Apple signing identity and provisioning profile.
+GitHub Actions runs a simulator build and uploads the app bundle as an artifact. Installing on a physical iPhone requires an appropriate signing identity and provisioning profile.
