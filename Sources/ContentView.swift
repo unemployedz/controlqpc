@@ -1,94 +1,85 @@
 import SwiftUI
 
-private struct PanelFeature: Identifiable {
+private enum RunMode: String, CaseIterable, Identifiable {
+    case test = "Local test"
+    case cloud = "Cloud"
+
+    var id: String { rawValue }
+
+    var symbol: String {
+        switch self {
+        case .test: return "iphone"
+        case .cloud: return "cloud"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .test: return "Preview commands on this device"
+        case .cloud: return "Run independently in the cloud"
+        }
+    }
+}
+
+private struct BotTool: Identifiable {
     let title: String
     let symbol: String
     let detail: String
-    let isAvailable: Bool
-
     var id: String { title }
 
-    static let all: [PanelFeature] = [
-        .init(title: "Profile", symbol: "person.crop.circle", detail: "Device profile preview", isAvailable: true),
-        .init(title: "Files", symbol: "folder", detail: "File-management demo only", isAvailable: true),
-        .init(title: "Screen", symbol: "iphone", detail: "Screen sharing requires an explicit session on the enrolled device", isAvailable: true),
-        .init(title: "Camera", symbol: "camera", detail: "Camera access is not implemented in this demo", isAvailable: false),
-        .init(title: "Mic", symbol: "mic", detail: "Microphone access is not implemented in this demo", isAvailable: false),
-        .init(title: "SMS", symbol: "envelope", detail: "Private-message collection is not supported", isAvailable: false),
-        .init(title: "Contacts", symbol: "person.text.rectangle", detail: "Contact access requires explicit permission", isAvailable: true),
-        .init(title: "Apps", symbol: "square.grid.2x2", detail: "Installed-app inventory depends on Android platform permissions", isAvailable: true),
-        .init(title: "Keylogger", symbol: "keyboard", detail: "Unavailable: this prototype does not record keystrokes", isAvailable: false),
-        .init(title: "Location", symbol: "location", detail: "Location sharing requires opt-in and platform permission", isAvailable: true),
-        .init(title: "Browser", symbol: "safari", detail: "Browser activity is demo-only; no hidden browsing capture", isAvailable: true),
-        .init(title: "Screen reader", symbol: "text.alignleft", detail: "Accessibility data is not collected by this demo", isAvailable: false),
-        .init(title: "Clipboard", symbol: "doc.on.clipboard", detail: "Clipboard reading is not implemented", isAvailable: false),
-        .init(title: "Lock screen", symbol: "lock", detail: "Remote lock depends on supported, authorized device-management APIs", isAvailable: true),
-        .init(title: "Chat", symbol: "bubble.left", detail: "Secure support-message placeholder", isAvailable: true)
+    static let all: [BotTool] = [
+        .init(title: "Commands", symbol: "terminal", detail: "Create and manage slash commands."),
+        .init(title: "Auto replies", symbol: "bubble.left.and.bubble.right", detail: "Set up keyword responses and canned replies."),
+        .init(title: "Welcome", symbol: "hand.wave", detail: "Configure welcome messages for new members."),
+        .init(title: "Embeds", symbol: "rectangle.on.rectangle", detail: "Design rich embed messages."),
+        .init(title: "Moderation", symbol: "shield", detail: "Configure permission-aware moderation tools."),
+        .init(title: "Activity", symbol: "waveform.path", detail: "Set the bot's supported presence and activity.")
     ]
 }
 
 struct ContentView: View {
-    @State private var selectedFeature: PanelFeature?
-    @State private var selectedTab = "Clients"
-    @State private var showConnectSheet = false
+    @State private var selectedMode: RunMode = .test
+    @State private var botName = "My Discord Bot"
+    @State private var botToken = ""
+    @State private var tokenVisible = false
+    @State private var isPreviewRunning = false
+    @State private var selectedTool: BotTool?
+    @State private var showTokenInfo = false
+    @State private var selectedTab = "Overview"
 
-    private let background = Color.black
-    private let panel = Color(red: 0.035, green: 0.035, blue: 0.035)
-    private let accent = Color.white
-
-    private let topItems: [(String, String)] = [
-        ("antenna.radiowaves.left.and.right", "Connection"),
-        ("arrow.triangle.branch", "Routes"),
-        ("shippingbox", "Packages"),
-        ("cpu", "Agent"),
-        ("music.note", "Media"),
-        ("moon.stars", "Appearance")
-    ]
-
-    private let quickActions: [(String, String)] = [
-        ("arrow.up.right", "Open"),
-        ("nosign", "Disconnect"),
-        ("rectangle.text.magnifyingglass", "Details"),
-        ("pencil", "Edit"),
-        ("rectangle", "Window"),
-        ("iphone.gen3", "Device"),
-        ("link", "Pair")
-    ]
-
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
+    private let panel = Color(red: 0.045, green: 0.045, blue: 0.045)
+    private let muted = Color.white.opacity(0.52)
+    private let stroke = Color.white.opacity(0.085)
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 18) {
+                VStack(alignment: .leading, spacing: 20) {
                     brandHeader
-                    header
-                    clientCard
-                    featureGrid
-                    footer
+                    titleBlock
+                    modePicker
+                    botCard
+                    tokenCard
+                    toolsSection
+                    consoleCard
+                    bottomNavigation
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
-                .padding(.bottom, 30)
+                .padding(.bottom, 32)
             }
         }
-        .sheet(isPresented: $showConnectSheet) {
-            connectSheet
+        .preferredColorScheme(.dark)
+        .sheet(item: $selectedTool) { tool in
+            toolSheet(tool)
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
-        .alert(item: $selectedFeature) { feature in
-            Alert(
-                title: Text(feature.title),
-                message: Text(feature.detail),
-                dismissButton: .default(Text("Close"))
-            )
+        .alert("Keep your bot token private", isPresented: $showTokenInfo) {
+            Button("Got it", role: .cancel) { }
+        } message: {
+            Text("This prototype does not send or store your token. Before connecting a real bot, add a secure backend and never place tokens in source code, logs, or a public repository.")
         }
     }
 
@@ -102,229 +93,377 @@ struct ContentView: View {
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .tracking(1.5)
                     .foregroundStyle(.white)
-                Text("DEVICE PANEL")
+                Text("CLOUD BOT STUDIO")
                     .font(.system(size: 9, weight: .medium, design: .monospaced))
-                    .tracking(1.8)
-                    .foregroundStyle(.white.opacity(0.42))
+                    .tracking(1.6)
+                    .foregroundStyle(muted)
             }
             Spacer()
-            Circle()
-                .fill(Color.white.opacity(0.75))
-                .frame(width: 6, height: 6)
-            Text("LOCAL DEMO")
+            Image(systemName: "circle.fill")
+                .font(.system(size: 6))
+                .foregroundStyle(.white.opacity(0.7))
+            Text("PRIVATE")
                 .font(.system(size: 8, weight: .bold, design: .monospaced))
-                .tracking(0.8)
-                .foregroundStyle(.white.opacity(0.55))
+                .tracking(0.9)
+                .foregroundStyle(muted)
         }
-        .padding(.horizontal, 2)
         .padding(.vertical, 4)
     }
 
-    private var header: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(topItems.enumerated()), id: \.offset) { entry in
-                let item = entry.element
-                Button {
-                    if item.1 == "Connection" { showConnectSheet = true }
-                    else { selectedFeature = PanelFeature(title: item.1, symbol: item.0, detail: "This is a visual prototype. Connect a secure, authorized backend to enable supported features.", isAvailable: true) }
-                } label: {
-                    VStack(spacing: 7) {
-                        Image(systemName: item.0)
-                            .font(.system(size: 19, weight: .semibold))
-                            .frame(height: 24)
-                        Text(item.1)
-                            .font(.system(size: 9, weight: .medium))
-                            .lineLimit(1)
-                    }
-                    .foregroundStyle(Color.white.opacity(0.9))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 4)
-        .background(panel.opacity(0.92), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.07), lineWidth: 1))
-    }
-
-    private var clientCard: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .stroke(accent, lineWidth: 2)
-                        .frame(width: 82, height: 82)
-                        .shadow(color: accent.opacity(0.35), radius: 8)
-                    Image(systemName: "iphone")
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(accent.opacity(0.9))
-                }
-                .frame(width: 94)
-
-                VStack(alignment: .leading, spacing: 7) {
-                    Text("No Client Selected")
-                        .font(.system(size: 16, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white)
-                    Text("Select an enrolled device to view details")
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color.white.opacity(0.62))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button {
-                        showConnectSheet = true
-                    } label: {
-                        Label("Pair device", systemImage: "link")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(background)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(accent, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 2)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(14)
-
-            Divider().overlay(Color.white.opacity(0.08))
-
-            HStack(spacing: 0) {
-                ForEach(Array(quickActions.enumerated()), id: \.offset) { entry in
-                    let action = entry.element
-                    Button {
-                        selectedFeature = PanelFeature(title: action.1, symbol: action.0, detail: "No device is connected. This control is a demo placeholder.", isAvailable: false)
-                    } label: {
-                        Image(systemName: action.0)
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Color.white.opacity(0.72))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 43)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 5)
-
-            HStack {
-                Text("No data")
-                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Color.white.opacity(0.72))
-                Spacer()
-                Circle()
-                    .fill(accent)
-                    .frame(width: 7, height: 7)
-                Text("DEMO")
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(accent)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 11)
-            .background(Color.black.opacity(0.18))
-        }
-        .background(panel.opacity(0.88), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.08), lineWidth: 1))
-    }
-
-    private var featureGrid: some View {
-        LazyVGrid(columns: columns, spacing: 8) {
-            ForEach(PanelFeature.all) { feature in
-                Button {
-                    selectedFeature = feature
-                } label: {
-                    VStack(spacing: 9) {
-                        Image(systemName: feature.symbol)
-                            .font(.system(size: 23, weight: .medium))
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(feature.isAvailable ? Color.white.opacity(0.94) : Color.white.opacity(0.48))
-                            .frame(height: 30)
-                        Text(feature.title)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(feature.isAvailable ? .white : Color.white.opacity(0.55))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.78)
-                        if !feature.isAvailable {
-                            Text("DEMO ONLY")
-                                .font(.system(size: 7, weight: .bold, design: .monospaced))
-                                .tracking(0.7)
-                                .foregroundStyle(accent.opacity(0.85))
-                        } else {
-                            Text(" ")
-                                .font(.system(size: 7))
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 93)
-                    .background(Color.white.opacity(0.025), in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 15).stroke(Color.white.opacity(0.045), lineWidth: 1))
-                    .contentShape(RoundedRectangle(cornerRadius: 15))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.top, 1)
-    }
-
-    private var footer: some View {
-        HStack(spacing: 0) {
-            footerItem("Clients", count: "0", symbol: "person.2")
-            footerItem("Servers", count: "1", symbol: "server.rack")
-            footerItem("Settings", count: nil, symbol: "slider.horizontal.3")
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("Bot workspace")
+                .font(.system(size: 27, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+            Text("Build, test, and manage your Discord bot.")
+                .font(.system(size: 13))
+                .foregroundStyle(muted)
         }
         .padding(.top, 4)
     }
 
-    private func footerItem(_ title: String, count: String?, symbol: String) -> some View {
-        Button {
-            selectedTab = title
-            if title == "Settings" {
-                selectedFeature = PanelFeature(title: "Settings", symbol: symbol, detail: "Prototype settings. No remote device is connected.", isAvailable: true)
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: symbol)
-                    .font(.system(size: 12, weight: .semibold))
-                Text(title)
-                    .font(.system(size: 11, weight: .semibold))
-                if let count {
-                    Text(count)
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(accent)
+    private var modePicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("RUN MODE")
+            HStack(spacing: 8) {
+                ForEach(RunMode.allCases) { mode in
+                    Button {
+                        selectedMode = mode
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: mode.symbol)
+                                .font(.system(size: 16, weight: .semibold))
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(mode.rawValue)
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text(mode.subtitle)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(selectedMode == mode ? .white.opacity(0.62) : muted)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(12)
+                        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+                        .background(selectedMode == mode ? Color.white.opacity(0.105) : panel,
+                                    in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .stroke(selectedMode == mode ? Color.white.opacity(0.3) : stroke, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .foregroundStyle(selectedTab == title ? Color.white : Color.white.opacity(0.58))
-            .padding(.horizontal, 13)
-            .padding(.vertical, 10)
-            .background(selectedTab == title ? Color.white.opacity(0.08) : Color.clear, in: Capsule())
         }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
     }
 
-    private var connectSheet: some View {
+    private var botCard: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                sectionLabel("BOT OVERVIEW")
+                Spacer()
+                statusPill(isPreviewRunning ? "PREVIEW ACTIVE" : "NOT CONNECTED",
+                           active: isPreviewRunning)
+            }
+
+            HStack(spacing: 13) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 17, style: .continuous)
+                        .fill(Color.white.opacity(0.07))
+                        .frame(width: 58, height: 58)
+                    Image(systemName: "cpu")
+                        .font(.system(size: 25, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    TextField("Bot name", text: $botName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .textInputAutocapitalization(.words)
+                    Text(selectedMode == .test ? "LOCAL TEST WORKSPACE" : "CLOUD DEPLOYMENT")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .tracking(1)
+                        .foregroundStyle(muted)
+                }
+            }
+
+            HStack(spacing: 0) {
+                metric("RUNTIME", value: isPreviewRunning ? "Preview" : "Idle")
+                Spacer()
+                metric("COMMANDS", value: "6 drafts")
+                Spacer()
+                metric("UPTIME", value: "—")
+            }
+            .padding(.vertical, 13)
+            .padding(.horizontal, 12)
+            .background(Color.black.opacity(0.42), in: RoundedRectangle(cornerRadius: 12))
+
+            Button {
+                if selectedMode == .test {
+                    isPreviewRunning.toggle()
+                } else {
+                    showTokenInfo = true
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: selectedMode == .test
+                          ? (isPreviewRunning ? "stop.fill" : "play.fill")
+                          : "cloud.upload")
+                    Text(selectedMode == .test
+                         ? (isPreviewRunning ? "Stop local preview" : "Start local preview")
+                         : "Prepare cloud deployment")
+                }
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.black)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            Text(selectedMode == .test
+                 ? "Preview mode simulates the workspace UI; it does not connect to Discord yet."
+                 : "Cloud mode needs a protected backend and a deployed bot runtime.")
+                .font(.system(size: 11))
+                .foregroundStyle(muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(15)
+        .background(panel, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(stroke, lineWidth: 1))
+    }
+
+    private var tokenCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                sectionLabel("BOT CREDENTIALS")
+                Spacer()
+                Button {
+                    showTokenInfo = true
+                } label: {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 14))
+                        .foregroundStyle(muted)
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 10) {
+                Image(systemName: "key.horizontal")
+                    .foregroundStyle(muted)
+                Group {
+                    if tokenVisible {
+                        TextField("Paste bot token for future setup", text: $botToken)
+                    } else {
+                        SecureField("Paste bot token for future setup", text: $botToken)
+                    }
+                }
+                .font(.system(size: 12, design: .monospaced))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                Button {
+                    tokenVisible.toggle()
+                } label: {
+                    Image(systemName: tokenVisible ? "eye.slash" : "eye")
+                        .foregroundStyle(muted)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(13)
+            .background(Color.black, in: RoundedRectangle(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).stroke(stroke, lineWidth: 1))
+
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "lock.shield")
+                    .foregroundStyle(.white.opacity(0.8))
+                Text("UI preview only. This field does not transmit or save credentials.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(15)
+        .background(panel, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(stroke, lineWidth: 1))
+    }
+
+    private var toolsSection: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack {
+                sectionLabel("BOT BUILDER")
+                Spacer()
+                Text("6 MODULES")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(muted)
+            }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)], spacing: 9) {
+                ForEach(BotTool.all) { tool in
+                    Button {
+                        selectedTool = tool
+                    } label: {
+                        VStack(alignment: .leading, spacing: 13) {
+                            Image(systemName: tool.symbol)
+                                .font(.system(size: 19, weight: .medium))
+                                .foregroundStyle(.white)
+                            Text(tool.title)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                            HStack {
+                                Text("CONFIGURE")
+                                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                                    .tracking(0.7)
+                                    .foregroundStyle(muted)
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(muted)
+                            }
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
+                        .background(panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(stroke, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var consoleCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                sectionLabel("LIVE CONSOLE")
+                Spacer()
+                Image(systemName: "terminal")
+                    .foregroundStyle(muted)
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                consoleLine("controlqpc", "workspace initialized")
+                consoleLine("runtime", selectedMode == .test ? "local test selected" : "cloud runtime not connected")
+                consoleLine("security", "credentials are not transmitted")
+                if isPreviewRunning {
+                    consoleLine("preview", "UI preview started")
+                }
+            }
+            .padding(13)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.black, in: RoundedRectangle(cornerRadius: 12))
+        }
+        .padding(15)
+        .background(panel, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(stroke, lineWidth: 1))
+    }
+
+    private var bottomNavigation: some View {
+        HStack(spacing: 0) {
+            navItem("Overview", symbol: "square.grid.2x2")
+            navItem("Commands", symbol: "terminal")
+            navItem("Deploys", symbol: "cloud")
+            navItem("Settings", symbol: "slider.horizontal.3")
+        }
+        .padding(5)
+        .background(panel, in: Capsule())
+        .overlay(Capsule().stroke(stroke, lineWidth: 1))
+    }
+
+    private func navItem(_ title: String, symbol: String) -> some View {
+        Button {
+            selectedTab = title
+            if title == "Commands" {
+                selectedTool = BotTool.all[0]
+            } else if title == "Deploys" {
+                selectedMode = .cloud
+            } else if title == "Settings" {
+                showTokenInfo = true
+            }
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: symbol)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 9, weight: .medium))
+            }
+            .foregroundStyle(selectedTab == title ? .white : muted)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(selectedTab == title ? Color.white.opacity(0.09) : .clear, in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func toolSheet(_ tool: BotTool) -> some View {
         ZStack {
-            background.ignoresSafeArea()
+            Color.black.ignoresSafeArea()
             VStack(alignment: .leading, spacing: 16) {
-                Text("Connect a device")
+                Image(systemName: tool.symbol)
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(.white)
+                Text(tool.title)
                     .font(.system(size: 23, weight: .bold))
                     .foregroundStyle(.white)
-                Text("This prototype does not connect to a real device yet.")
+                Text(tool.detail)
                     .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.72))
-                Label("Secure enrollment will use a one-time pairing code.", systemImage: "lock.shield")
-                    .font(.system(size: 13))
-                    .foregroundStyle(accent)
+                    .foregroundStyle(muted)
+                Text("Builder UI preview — connect the bot backend to enable saving and execution.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(muted)
                 Spacer()
-                Button("Done") { showConnectSheet = false }
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(background)
+                Button("Done") { selectedTool = nil }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.black)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(accent, in: RoundedRectangle(cornerRadius: 13))
+                    .background(.white, in: RoundedRectangle(cornerRadius: 12))
             }
             .padding(24)
         }
+        .preferredColorScheme(.dark)
+    }
+
+    private func sectionLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .tracking(1.25)
+            .foregroundStyle(muted)
+    }
+
+    private func statusPill(_ title: String, active: Bool) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(active ? Color.white : Color.white.opacity(0.35))
+                .frame(width: 5, height: 5)
+            Text(title)
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .tracking(0.5)
+        }
+        .foregroundStyle(active ? .white : muted)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.white.opacity(active ? 0.12 : 0.05), in: Capsule())
+    }
+
+    private func metric(_ label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                .foregroundStyle(muted)
+            Text(value)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white)
+        }
+    }
+
+    private func consoleLine(_ source: String, _ message: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(source)
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 74, alignment: .leading)
+            Text(message)
+                .foregroundStyle(muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.system(size: 10, design: .monospaced))
     }
 }
