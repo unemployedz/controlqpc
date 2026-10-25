@@ -562,6 +562,7 @@ struct ContentView: View {
             botToken = ""
             tokenVisible = false
             cloudStatus = "Connecting"
+            cloudBusy = false
             await refreshCloudStatus()
             await refreshCloudLogs()
         } catch {
