@@ -238,6 +238,8 @@ struct ContentView: View {
             Button {
                 if selectedMode == .test {
                     isPreviewRunning.toggle()
+                    localEvents.append(isPreviewRunning ? "Local command simulator started" : "Local command simulator stopped")
+                    if localEvents.count > 30 { localEvents.removeFirst(localEvents.count - 30) }
                 } else {
                     Task { await toggleCloudBot() }
                 }
@@ -462,8 +464,10 @@ struct ContentView: View {
                 consoleLine("controlqpc", "workspace initialized")
                 consoleLine("runtime", selectedMode == .test ? "local test selected" : "cloud runtime not connected")
                 consoleLine("security", "credentials are not transmitted")
-                if isPreviewRunning {
-                    consoleLine("preview", "Local command simulator active")
+                if selectedMode == .test {
+                    ForEach(Array(localEvents.suffix(5).enumerated()), id: \.offset) { _, event in
+                        consoleLine("local", event)
+                    }
                 }
             }
             .padding(13)
