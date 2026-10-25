@@ -21,6 +21,22 @@ private enum RunMode: String, CaseIterable, Identifiable {
     }
 }
 
+private struct DarkEditor: ViewModifier {
+    func body(content: Content) -> some View {
+        content.font(.system(size: 13)).foregroundStyle(.white).padding(12)
+            .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.1), lineWidth: 1))
+    }
+}
+
+private struct WhiteActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.font(.system(size: 12, weight: .semibold)).foregroundStyle(.black)
+            .frame(maxWidth: .infinity).padding(.vertical, 12)
+            .background(Color.white.opacity(configuration.isPressed ? 0.75 : 1), in: RoundedRectangle(cornerRadius: 10))
+    }
+}
+
 private struct BotTool: Identifiable {
     let title: String
     let symbol: String
@@ -55,6 +71,16 @@ struct ContentView: View {
     @State private var cloudLogs: [String] = []
     @State private var cloudBusy = false
     @State private var cloudError = ""
+    @AppStorage("qpc.commandName") private var commandName = "ping"
+    @AppStorage("qpc.commandResponse") private var commandResponse = "Pong."
+    @AppStorage("qpc.autoKeyword") private var autoKeyword = "hello"
+    @AppStorage("qpc.autoResponse") private var autoResponse = "Hey there!"
+    @AppStorage("qpc.welcomeMessage") private var welcomeMessage = "Welcome to the server, {user}!"
+    @AppStorage("qpc.embedTitle") private var embedTitle = "Welcome"
+    @AppStorage("qpc.embedDescription") private var embedDescription = "Thanks for joining our community."
+    @AppStorage("qpc.moderationEnabled") private var moderationEnabled = true
+    @AppStorage("qpc.activityText") private var activityText = "ControlQPC"
+    @State private var localEvents: [String] = ["Workspace ready"]
 
     private let panel = Color(red: 0.045, green: 0.045, blue: 0.045)
     private let muted = Color.white.opacity(0.52)
