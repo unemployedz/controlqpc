@@ -63,7 +63,8 @@ jobs:
           test -d "$APP_PATH"
           mkdir -p build/ipa/Payload
           cp -R "$APP_PATH" build/ipa/Payload/ControlQPC.app
-          /usr/bin/zip -r ControlQPC-unsigned.ipa build/ipa/Payload
+          cd build/ipa
+          /usr/bin/zip -r "$GITHUB_WORKSPACE/ControlQPC-unsigned.ipa" Payload
 
       - name: Package source code
         run: git archive --format=zip --prefix=ControlQPC-source/ HEAD -o ControlQPC-source.zip
