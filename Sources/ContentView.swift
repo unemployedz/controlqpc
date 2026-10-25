@@ -515,30 +515,88 @@ struct ContentView: View {
     private func toolSheet(_ tool: BotTool) -> some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 16) {
-                Image(systemName: tool.symbol)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundStyle(.white)
-                Text(tool.title)
-                    .font(.system(size: 23, weight: .bold))
-                    .foregroundStyle(.white)
-                Text(tool.detail)
-                    .font(.system(size: 14))
-                    .foregroundStyle(muted)
-                Text("Builder UI preview — connect the bot backend to enable saving and execution.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(muted)
-                Spacer()
-                Button("Done") { selectedTool = nil }
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 12))
-            }
-            .padding(24)
-        }
-        .preferredColorScheme(.dark)
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 12) {
+                    Image(systemName: tool.symbol).font(.system(size: 24, weight: .medium)).foregroundStyle(.white)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(tool.title).font(.system(size: 22, weight: .bold)).foregroundStyle(.white)
+                        Text("CONFIGURATION").font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(1.2).foregroundStyle(muted)
+                    }
+                }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 13) {
+                        switch tool.title {
+                        case "Commands":
+                            editorLabel("SLASH COMMAND NAME")
+                            TextField("ping", text: $commandName).textInputAutocapitalization(.never).autocorrectionDisabled().modifier(DarkEditor())
+                            editorLabel("RESPONSE")
+                            TextField("Bot response", text: $commandResponse, axis: .vertical).lineLimit(2...5).modifier(DarkEditor())
+                            Button("Test command") {
+                                localEvents.append("Test /\(commandName): \(commandResponse)")
+                                if localEvents.count > 30 { localEvents.removeFirst() }
+                            }.buttonStyle(WhiteActionStyle())
+                        case "Auto replies":
+                            editorLabel("TRIGGER KEYWORD")
+                            TextField("hello", text: $autoKeyword).textInputAutocapitalization(.never).modifier(DarkEditor())
+                            editorLabel("AUTO RESPONSE")
+                            TextField("Reply text", text: $autoResponse, axis: .vertical).lineLimit(2...5).modifier(DarkEditor())
+                            Button("Test auto reply") {
+                                localEvents.append("Auto reply: \(autoKeyword) → \(autoResponse)")
+                                if localEvents.count > 30 { localEvents.removeFirst() }
+                            }.buttonStyle(WhiteActionStyle())
+                        case "Welcome":
+                            editorLabel("WELCOME MESSAGE")
+                            TextField("Use {user} for member name", text: $welcomeMessage, axis: .vertical).lineLimit(2...5).modifier(DarkEditor())
+                            Text("The {user} placeholder is replaced with a member name when connected to Discord.").font(.system(size: 11)).foregroundStyle(muted)
+                            Button("Preview welcome") {
+                                localEvents.append(welcomeMessage.replacingOccurrences(of: "{user}", with: "New member"))
+                                if localEvents.count > 30 { localEvents.removeFirst() }
+                            }.buttonStyle(WhiteActionStyle())
+                        case "Embeds":
+                            editorLabel("EMBED TITLE")
+                            TextField("Title", text: $embedTitle).modifier(DarkEditor())
+                            editorLabel("DESCRIPTION")
+                            TextField("Description", text: $embedDescription, axis: .vertical).lineLimit(3...6).modifier(DarkEditor())
+                            VStack(alignment: .leading, spacing: 7) {
+                                Text(embedTitle.isEmpty ? "Embed title preview" : embedTitle).font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                                Text(embedDescription.isEmpty ? "Embed description preview" : embedDescription).font(.system(size: 12)).foregroundStyle(muted)
+                            }.padding(14).frame(maxWidth: .infinity, alignment: .leading).background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                            Button("Test embed preview") {
+                                localEvents.append("Embed preview: \(embedTitle)")
+                                if localEvents.count > 30 { localEvents.removeFirst() }
+                            }.buttonStyle(WhiteActionStyle())
+                        case "Moderation":
+                            Toggle(isOn: $moderationEnabled) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Moderation tools").font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                                    Text("Save this module as enabled or disabled").font(.system(size: 11)).foregroundStyle(muted)
+                                }
+                            }.tint(.white)
+                            Text("Real moderation actions require a connected bot and appropriate Discord permissions.").font(.system(size: 11)).foregroundStyle(muted)
+                            Button("Test moderation setting") {
+                                localEvents.append("Moderation module " + (moderationEnabled ? "enabled" : "disabled"))
+                                if localEvents.count > 30 { localEvents.removeFirst() }
+                            }.buttonStyle(WhiteActionStyle())
+                        case "Activity":
+                            editorLabel("ACTIVITY TEXT")
+                            TextField("ControlQPC", text: $activityText).modifier(DarkEditor())
+                            Text("The presence is applied to Discord after runtime support is connected.").font(.system(size: 11)).foregroundStyle(muted)
+                            Button("Preview activity") {
+                                localEvents.append("Activity preview: Playing \(activityText)")
+                                if localEvents.count > 30 { localEvents.removeFirst() }
+                            }.buttonStyle(WhiteActionStyle())
+                        default:
+                            Text(tool.detail).foregroundStyle(muted)
+                        }
+                    }.padding(.vertical, 4)
+                }
+                Button("Save and close") { selectedTool = nil }.buttonStyle(WhiteActionStyle())
+            }.padding(22)
+        }.preferredColorScheme(.dark)
+    }
+
+    private func editorLabel(_ value: String) -> some View {
+        Text(value).font(.system(size: 9, weight: .bold, design: .monospaced)).tracking(1).foregroundStyle(muted)
     }
 
     private func toggleCloudBot() async {
