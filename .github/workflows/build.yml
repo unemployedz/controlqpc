@@ -12,8 +12,8 @@ permissions:
   contents: write
 
 jobs:
-  ios-simulator:
-    name: Build iOS simulator app
+  ios-build:
+    name: Build iOS app and source packages
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -28,7 +28,7 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Build simulator app
+      - name: Build iOS simulator app
         run: |
           xcodebuild \
             -project ControlQPC.xcodeproj \
@@ -45,15 +45,35 @@ jobs:
           cd build/DerivedData/Build/Products/Debug-iphonesimulator
           /usr/bin/zip -r "$GITHUB_WORKSPACE/ControlQPC-simulator-app.zip" ControlQPC.app
 
-      - name: Package source code
+      - name: Build unsigned iOS device app
         run: |
-          git archive --format=zip --prefix=ControlQPC-source/ HEAD -o ControlQPC-source.zip
+          xcodebuild \
+            -project ControlQPC.xcodeproj \
+            -scheme ControlQPC \
+            -sdk iphoneos \
+            -configuration Release \
+            GENERATE_INFOPLIST_FILE=YES \
+            CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath build/DeviceDerivedData \
+            build
 
-      - name: Upload build and source artifacts
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build/DeviceDerivedData/Build/Products/Release-iphoneos/ControlQPC.app"
+          test -d "$APP_PATH"
+          mkdir -p build/ipa/Payload
+          cp -R "$APP_PATH" build/ipa/Payload/ControlQPC.app
+          /usr/bin/zip -r ControlQPC-unsigned.ipa build/ipa/Payload
+
+      - name: Package source code
+        run: git archive --format=zip --prefix=ControlQPC-source/ HEAD -o ControlQPC-source.zip
+
+      - name: Upload all build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ControlQPC-build-and-source
+          name: ControlQPC-release-files
           path: |
+            ControlQPC-unsigned.ipa
             ControlQPC-simulator-app.zip
             ControlQPC-source.zip
           if-no-files-found: error
@@ -64,5 +84,6 @@ jobs:
         with:
           generate_release_notes: true
           files: |
+            ControlQPC-unsigned.ipa
             ControlQPC-simulator-app.zip
             ControlQPC-source.zip
