@@ -1,0 +1,38 @@
+name: Build ControlQPC
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  ios-simulator:
+    name: Build iOS simulator app
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build simulator app
+        run: |
+          xcodebuild             -project ControlQPC.xcodeproj             -scheme ControlQPC             -sdk iphonesimulator             -configuration Debug             CODE_SIGNING_ALLOWED=NO             -derivedDataPath build/DerivedData             build
+
+      - name: Upload simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: ControlQPC-simulator-app
+          path: build/DerivedData/Build/Products/Debug-iphonesimulator/ControlQPC.app
+          if-no-files-found: error
