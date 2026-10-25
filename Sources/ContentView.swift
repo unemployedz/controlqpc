@@ -246,9 +246,6 @@ struct ContentView: View {
                     .foregroundStyle(.white)
                     .fixedSize(horizontal: false, vertical: true)
             }
-                .font(.system(size: 11))
-                .foregroundStyle(muted)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(15)
         .background(panel, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
